@@ -1,9 +1,7 @@
 name: release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 env:
   CGO_CFLAGS: '-O3'
@@ -11,6 +9,7 @@ env:
 
 jobs:
   setup-environment:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: release
     outputs:
@@ -97,6 +96,7 @@ jobs:
             dist/ollama-darwin.tgz
 
   windows-depends:
+    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
         os: [windows]
