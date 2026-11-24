@@ -1,13 +1,17 @@
 name: test
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # For PRs, later CI runs preempt previous ones. e.g. a force push on a PR
+  # cancels running CI jobs and starts all new ones.
+  #
+  # For non-PR pushes, concurrency.group needs to be unique for every distinct
+  # CI run we want to have happen. Use run_id, which in practice means all
+  # non-PR CI runs will be allowed to run without preempting each other.
+  group: ${{ github.workflow }}-$${{ github.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
+  pull_request:
     paths:
       - '**/*'
       - '!docs/**'
@@ -24,15 +28,15 @@ jobs:
           fetch-depth: 0
       - id: changes
         run: |
-          changed=True
-          if [[ "$GITHUB_EVENT_NAME" == push && "$BASE" != 0000000000000000000000000000000000000000 ]]; then
-            if git diff --quiet "$BASE" "$GITHUB_SHA" -- llama/llama.cpp ml/backend/ggml/ggml; then
-              changed=False
-            fi
-          fi
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
-        env:
-          BASE: ${{ github.event.before }}
+          changed() {
+            local BASE=${{ github.event.pull_request.base.sha }}
+            local HEAD=${{ github.event.pull_request.head.sha }}
+            local MERGE_BASE=$(git merge-base $BASE $HEAD)
+            git diff-tree -r --no-commit-id --name-only "$MERGE_BASE" "$HEAD" \
+              | xargs python3 -c "import sys; from pathlib import Path; print(any(Path(x).match(glob) for x in sys.argv[1:] for glob in '$*'.split(' ')))"
+          }
+
+          echo changed=$(changed 'llama/llama.cpp/**' 'ml/backend/ggml/ggml/**') | tee -a $GITHUB_OUTPUT
 
   linux:
     needs: [changes]

@@ -1,11 +1,11 @@
 name: latest
 
 on:
-  workflow_dispatch:
+  release:
+    types: [released]
 
 jobs:
   update-latest:
-    if: startsWith(github.ref, 'refs/tags/v')
     environment: release
     runs-on: linux
     steps:
